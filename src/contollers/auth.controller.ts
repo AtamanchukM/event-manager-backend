@@ -1,7 +1,8 @@
 import {Request, Response} from "express";
-import {User} from "../models"
+import {User, Event, Participant} from "../models"
 import { hashPassword, comparePasswords } from "../utils/password";
 import { signToken } from "../utils/jwt";
+import { sequelize } from "../config/database";
 
 export async function register(req: Request, res: Response) {
 
@@ -60,6 +61,24 @@ export async function getAllUsers(req: Request, res: Response) {
         });
 
         return res.status(200).json(users);
+    } catch (error: any) {
+        return res.status(500).json({ error: error.message });
+    }
+}
+
+export async function resetDatabase(req: Request, res: Response) {
+    try {
+        // Видаляємо у правильному порядку (враховуючи foreign keys)
+        await Participant.destroy({ where: {} });
+        await Event.destroy({ where: {} });
+        await User.destroy({ where: {} });
+
+        return res.status(200).json({ 
+            message: "База даних очищена успішно",
+            deletedUsers: true,
+            deletedEvents: true,
+            deletedParticipants: true
+        });
     } catch (error: any) {
         return res.status(500).json({ error: error.message });
     }

@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { Event } from "../models";
+import { Event, Participant, User } from "../models";
 
 export async function createEvent(req: Request, res: Response) {
     try {
@@ -19,8 +19,27 @@ export async function createEvent(req: Request, res: Response) {
 
 export async function getAllEvents(req: Request, res: Response) {
     try {
-        const events = await Event.findAll();
-        return res.status(200).json(events);
+        const events = await Event.findAll() as any[];
+
+        // Завантажуємо учасників окремо для кожної события
+        const eventsWithUsers = await Promise.all(
+            events.map(async (event) => {
+                const participants = await Participant.findAll({
+                    where: { eventId: event.id },
+                    include: [{ model: User, as: 'user', attributes: ['id', 'username', 'email'] }]
+                }) as any[];
+
+                const users = participants.map((p) => p.user);
+
+                return {
+                    ...event.toJSON(),
+                    registeredUsers: users,
+                    registeredCount: users.length
+                };
+            })
+        );
+
+        return res.status(200).json(eventsWithUsers);
     } catch (error: any) {
         return res.status(500).json({ error: error.message });
     }
@@ -29,11 +48,25 @@ export async function getAllEvents(req: Request, res: Response) {
 export async function getEventById(req: Request, res: Response) {
     try {
         const { id } = req.params;
-        const event = await Event.findByPk(id);
+        const event = await Event.findByPk(id) as any;
+
         if (!event) {
             return res.status(404).json({ message: "Event not found" });
         }
-        return res.status(200).json(event);
+
+        // Завантажуємо учасників
+        const participants = await Participant.findAll({
+            where: { eventId: id },
+            include: [{ model: User, as: 'user', attributes: ['id', 'username', 'email'] }]
+        }) as any[];
+
+        const users = participants.map((p) => p.user);
+
+        return res.status(200).json({
+            ...event.toJSON(),
+            registeredUsers: users,
+            registeredCount: users.length
+        });
     } catch (error: any) {
         return res.status(500).json({ error: error.message });
     }
